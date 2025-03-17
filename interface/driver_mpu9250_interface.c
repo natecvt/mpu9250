@@ -33,8 +33,14 @@
  * <tr><td>2022/08/30  <td>1.0      <td>Shifeng Li  <td>first upload
  * </table>
  */
-
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+#include <linux/i2c-dev.h>
+#include <stdio.h>
 #include "driver_mpu9250_interface.h"
+
+static int g_i2c_fd = -1;
 
 /**
  * @brief  interface iic bus init
@@ -45,6 +51,23 @@
  */
 uint8_t mpu9250_interface_iic_init(void)
 {
+    const char *i2c_bus = I2C_FILE_PATH;  // Set the bus you want to use.
+    g_i2c_fd = open(i2c_bus, O_RDWR);
+    if (g_i2c_fd < 0)
+    {
+        perror("Failed to open I2C bus");
+        return 1;
+    }
+
+    // Set the I2C slave address. For example, if you want 0x68:
+    int addr = MPU9250_I2C_ADDR;
+    if (ioctl(g_i2c_fd, I2C_SLAVE, addr) < 0)
+    {
+        perror("Failed to set I2C address");
+        close(g_i2c_fd);
+        return 1;
+    }
+
     return 0;
 }
 
@@ -57,6 +80,11 @@ uint8_t mpu9250_interface_iic_init(void)
  */
 uint8_t mpu9250_interface_iic_deinit(void)
 {
+    if (g_i2c_fd >= 0)
+    {
+        close(g_i2c_fd);
+        g_i2c_fd = -1;
+    }
     return 0;
 }
 
@@ -73,6 +101,20 @@ uint8_t mpu9250_interface_iic_deinit(void)
  */
 uint8_t mpu9250_interface_iic_read(uint8_t addr, uint8_t reg, uint8_t *buf, uint16_t len)
 {
+    // Write the register address first.
+    if (write(g_i2c_fd, &reg, 1) != 1)
+    {
+        perror("Failed to write register address");
+        return 1;
+    }
+
+    // Then read the data.
+    if (read(g_i2c_fd, buf, len) != len)
+    {
+        perror("Failed to read from I2C device");
+        return 1;
+    }
+
     return 0;
 }
 
@@ -89,6 +131,20 @@ uint8_t mpu9250_interface_iic_read(uint8_t addr, uint8_t reg, uint8_t *buf, uint
  */
 uint8_t mpu9250_interface_iic_write(uint8_t addr, uint8_t reg, uint8_t *buf, uint16_t len)
 {
+    // Create a temporary buffer that holds the register address followed by the data.
+    uint8_t data[len + 1];
+    data[0] = reg;
+    for (uint16_t i = 0; i < len; i++)
+    {
+        data[i + 1] = buf[i];
+    }
+
+    if (write(g_i2c_fd, data, len + 1) != (len + 1))
+    {
+        perror("Failed to write to I2C device");
+        return 1;
+    }
+
     return 0;
 }
 

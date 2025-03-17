@@ -43,6 +43,9 @@
 extern "C"{
 #endif
 
+#define I2C_FILE_PATH "/dev/i2c-7"
+#define MPU9250_I2C_ADDR 0x68
+
 /**
  * @defgroup mpu9250_interface_driver mpu9250 interface driver function
  * @brief    mpu9250 interface driver modules
